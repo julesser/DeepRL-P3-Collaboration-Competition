@@ -9,12 +9,13 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-BUFFER_SIZE = int(1e5)  # replay buffer size
+BUFFER_SIZE = int(1e6)  # replay buffer size
 BATCH_SIZE = 128        # minibatch size
+LEARN_NUM = 5           # number of learning passes
 GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
-LR_ACTOR = 1e-4         # learning rate of the actor 
-LR_CRITIC = 1e-4        # learning rate of the critic
+LR_ACTOR = 1e-3         # learning rate of the actor 
+LR_CRITIC = 1e-3        # learning rate of the critic
 
 # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") #BUG: torch==0.4.0 doesn't support newest graphics cards / drivers
 # See https://stackoverflow.com/questions/60987997/why-torch-cuda-is-available-returns-false-even-after-installing-pytorch-with
@@ -65,8 +66,9 @@ class Agent():
 
         # Learn, if enough samples are available in memory
         if len(self.memory) > BATCH_SIZE:
-            experiences = self.memory.sample()
-            self.learn(experiences, GAMMA, agent_number)
+            for _ in range(LEARN_NUM):
+                experiences = self.memory.sample()
+                self.learn(experiences, GAMMA, agent_number)
 
     def act(self, state, add_noise=True):
         """Returns actions for both agents as per current policy, given their respective states."""
