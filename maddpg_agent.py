@@ -9,13 +9,16 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-BUFFER_SIZE = int(1e6)  # replay buffer size
-BATCH_SIZE = 128        # minibatch size
-LEARN_NUM = 5           # number of learning passes
+BUFFER_SIZE = int(1e5)  # replay buffer size
+BATCH_SIZE = 256        # minibatch size
+LEARN_NUM = 2           # number of learning passes
 GAMMA = 0.99            # discount factor
-TAU = 1e-3              # for soft update of target parameters
+TAU = 1e-2              # for soft update of target parameters
 LR_ACTOR = 1e-3         # learning rate of the actor 
 LR_CRITIC = 1e-3        # learning rate of the critic
+EPS_START = 5.0         # initial value for epsilon in noise decay process in Agent.act()
+EPS_EP_END = 300        # episode to end the noise decay process
+EPS_FINAL = 0           # final value for epsilon after decay
 
 # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") #BUG: torch==0.4.0 doesn't support newest graphics cards / drivers
 # See https://stackoverflow.com/questions/60987997/why-torch-cuda-is-available-returns-false-even-after-installing-pytorch-with
@@ -39,6 +42,8 @@ class Agent():
         self.action_size = action_size
         self.num_agents = num_agents
         self.seed = random.seed(random_seed)
+        self.eps = EPS_START
+        self.eps_decay = 1/(EPS_EP_END*LEARN_NUM)  # set decay rate based on epsilon end target
 
         # Actor Network (w/ Target Network)
         self.actor_local = Actor(state_size, action_size, random_seed).to(device)
@@ -70,7 +75,7 @@ class Agent():
                 experiences = self.memory.sample()
                 self.learn(experiences, GAMMA, agent_number)
 
-    def act(self, state, add_noise=True):
+    def act(self, state, add_noise):
         """Returns actions for both agents as per current policy, given their respective states."""
         states = torch.from_numpy(state).float().to(device)
         actions = np.zeros((self.num_agents, self.action_size))
@@ -82,7 +87,7 @@ class Agent():
                 actions[agent_num, :] = action
         self.actor_local.train()
         if add_noise:
-            actions += self.noise.sample()*self.noise_amplitude
+            actions += self.eps * self.noise.sample()
         return np.clip(actions, -1, 1)
 
     def reset(self):
@@ -142,6 +147,10 @@ class Agent():
         # ----------------------- update target networks ----------------------- #
         self.soft_update(self.critic_local, self.critic_target, TAU)
         self.soft_update(self.actor_local, self.actor_target, TAU)
+        # update noise decay parameter
+        self.eps -= self.eps_decay
+        self.eps = max(self.eps, EPS_FINAL)
+        self.noise.reset()
 
     def soft_update(self, local_model, target_model, tau):
         """Soft update model parameters.

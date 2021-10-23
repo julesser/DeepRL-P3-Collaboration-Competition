@@ -12,7 +12,7 @@ def get_actions(states, add_noise):
     action_1 = agent_1.act(states, add_noise)    # agent 1 chooses an action
     return np.concatenate((action_0, action_1), axis=0).flatten()
 
-def maddpg(n_episodes=2000, max_t=1000):
+def maddpg(n_episodes=4000, max_t=1000):
     """Deep Deterministic Policy Gradient (maddpg).
 
     Params
@@ -24,9 +24,6 @@ def maddpg(n_episodes=2000, max_t=1000):
     scores_deque = deque(maxlen=100)
     scores_all = []
     avgs = []
-    best_score = -np.inf
-    best_episode = 0
-    already_solved = False    
     
     for i_episode in range(n_episodes):
         env_info = env.reset(train_mode=True)[brain_name]         # reset the environment
@@ -34,7 +31,7 @@ def maddpg(n_episodes=2000, max_t=1000):
         agent_0.reset()
         agent_1.reset()
         scores = np.zeros(num_agents)
-        for t in range(max_t):
+        while True: 
             actions = get_actions(states, True)           # choose agent actions and combine them
             env_info = env.step(actions)[brain_name]           # send both agents' actions together to the environment
             next_states = np.reshape(env_info.vector_observations, (1, 48)) # combine the agent next states
@@ -52,50 +49,31 @@ def maddpg(n_episodes=2000, max_t=1000):
         scores_all.append(ep_best_score)
         avgs.append(np.mean(scores_deque))
 
-        # save best score                        
-        if ep_best_score > best_score:
-            best_score = ep_best_score
-            best_episode = i_episode
-        
         # print results
         if i_episode % 10 == 0:
-            print('Episodes {:0>4d}-{:0>4d}\tMax Reward: {:.3f}\tMoving Average: {:.3f}'.format(
-                i_episode-10, i_episode, np.max(scores_all[-10:]), avgs[-1]))
+            print('Episode {:0>4d}\tMax Reward: {:.3f}\t Average: {:.3f}'.format(
+                i_episode, np.max(scores_all[-10:]), avgs[-1]))
 
         # determine if environment is solved and keep best performing models
         if avgs[-1] >= 0.5:
-            if not already_solved:
-                print('<-- Environment solved in {:d} episodes! \
-                \n<-- Moving Average: {:.3f} over past {:d} episodes'.format(
-                    i_episode-100, avgs[-1], 100))
-                already_solved = True
-                # save weights
-                torch.save(agent_0.actor_local.state_dict(), 'models/checkpoint_actor_0.pth')
-                torch.save(agent_0.critic_local.state_dict(), 'models/checkpoint_critic_0.pth')
-                torch.save(agent_1.actor_local.state_dict(), 'models/checkpoint_actor_1.pth')
-                torch.save(agent_1.critic_local.state_dict(), 'models/checkpoint_critic_1.pth')
-            elif ep_best_score >= best_score:
-                print('<-- Best episode so far!\
-                \nEpisode {:0>4d}\tMax Reward: {:.3f}\tMoving Average: {:.3f}'.format(
-                i_episode, ep_best_score, avgs[-1]))
-                # save weights
-                torch.save(agent_0.actor_local.state_dict(), 'models/checkpoint_actor_0.pth')
-                torch.save(agent_0.critic_local.state_dict(), 'models/checkpoint_critic_0.pth')
-                torch.save(agent_1.actor_local.state_dict(), 'models/checkpoint_actor_1.pth')
-                torch.save(agent_1.critic_local.state_dict(), 'models/checkpoint_critic_1.pth')
-            elif (i_episode-best_episode) >= 200:
-                # stop training if model stops converging
-                print('<-- Training stopped. Best score not matched or exceeded for 200 episodes')
-                break
-            else:
-                continue
-            
+            print('<-- Environment solved in {:d} episodes! \
+            \n<-- Average: {:.3f} over past {:d} episodes'.format(i_episode-100, avgs[-1], 100))
+            # save weights
+            torch.save(agent_0.actor_local.state_dict(),
+                       'checkpoint_actor_0.pth')
+            torch.save(agent_0.critic_local.state_dict(),
+                       'checkpoint_critic_0.pth')
+            torch.save(agent_1.actor_local.state_dict(),
+                       'checkpoint_actor_1.pth')
+            torch.save(agent_1.critic_local.state_dict(),
+                       'checkpoint_critic_1.pth')
+            break
     return scores_all, avgs
 
 
 
 # 1. Create environment
-env = UnityEnvironment(file_name="simulator/Tennis.x86")
+env = UnityEnvironment(file_name="simulator/Tennis.x86", no_graphics=True)
 brain_name = env.brain_names[0]
 brain = env.brains[brain_name]
 env_info = env.reset(train_mode=True)[brain_name]
